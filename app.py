@@ -88,38 +88,61 @@ def load_system():
 
 def process_file(file_obj):
     if file_obj is None:
-        return "", "0 tokens"
-    with open(file_obj.name, "r", encoding="utf-8") as f:
-        text = f.read()
-        
+        return "", "0 tokens", None
+    
+    # Do not read the whole file into the UI! It will freeze the browser DOM.
+    import os
+    file_size = os.path.getsize(file_obj.name)
+    rough_tokens = file_size // 4 # Rough estimate
+    
+    # Only read a small chunk for the UI preview
+    with open(file_obj.name, "r", encoding="utf-8", errors="ignore") as f:
+        preview_text = f.read(2000)
+        if file_size > 2000:
+            preview_text += "\n\n... [Text truncated for UI preview. Full file will be processed!] ..."
+            
     load_system()
-    # Simple rough token estimate for instant UI feedback (1 token ~= 4 chars) to avoid UI freeze on 6M tokens
-    rough_tokens = len(text) // 4 
-    return text, f"Estimated Size: {rough_tokens:,} tokens"
+    return preview_text, f"**Estimated Size:** {rough_tokens:,} tokens", file_obj.name
 
-def upload_knowledge(text, progress=gr.Progress()):
-    if not text.strip():
-        return "Please enter some text."
+def upload_knowledge(file_path, progress=gr.Progress()):
+    if not file_path:
+        return "Please upload a file first."
     
     load_system()
-    progress(0.1, desc="Tokenizing text...")
-    inputs = TOKENIZER(text, return_tensors="pt").to(DEVICE)
-    total_tokens = len(inputs.input_ids[0])
+    progress(0.05, desc="Preparing to read massive file...")
     
-    # We must chunk the text if it's too large so the forward pass doesn't OOM during extraction
-    chunk_size = 512
-    progress(0.2, desc=f"Vectorizing {total_tokens:,} tokens...")
+    # We read and process in chunks to avoid blowing up the 16GB RAM
+    chunk_chars = 100000 # Read 100k chars at a time
+    total_tokens_processed = 0
     
-    with torch.no_grad():
-        for i in range(0, total_tokens, chunk_size):
-            chunk = inputs.input_ids[:, i:i+chunk_size]
-            outputs = MODEL(chunk, output_hidden_states=True)
-            final_states = outputs.hidden_states[-1]
-            MEMORY_BANK.write(final_states)
-            progress(0.2 + 0.8 * (i / total_tokens), desc=f"Processing chunk {i//chunk_size}...")
+    import os
+    file_size = os.path.getsize(file_path)
+    processed_chars = 0
+    
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        while True:
+            text_chunk = f.read(chunk_chars)
+            if not text_chunk:
+                break
+                
+            inputs = TOKENIZER(text_chunk, return_tensors="pt").to(DEVICE)
+            chunk_tokens = len(inputs.input_ids[0])
+            total_tokens_processed += chunk_tokens
+            
+            # Vectorize this chunk (max 512 tokens at a time for the forward pass)
+            forward_chunk_size = 512
+            with torch.no_grad():
+                for i in range(0, chunk_tokens, forward_chunk_size):
+                    sub_chunk = inputs.input_ids[:, i:i+forward_chunk_size]
+                    outputs = MODEL(sub_chunk, output_hidden_states=True)
+                    final_states = outputs.hidden_states[-1]
+                    MEMORY_BANK.write(final_states)
+                    
+            processed_chars += len(text_chunk)
+            progress(0.1 + 0.9 * (processed_chars / file_size), desc=f"Vectorized {total_tokens_processed:,} tokens...")
             
     current_vectors = MEMORY_BANK.memory.size(0)
-    return f"✅ Success! Vectorized {total_tokens:,} tokens.\nTotal Vectors in Memory Bank: {current_vectors:,}"
+    return f"✅ Success! Vectorized {total_tokens_processed:,} tokens.\nTotal Vectors in Memory Bank: {current_vectors:,}"
 
 def generate_response(prompt, history):
     load_system()
@@ -153,23 +176,30 @@ with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
     gr.Markdown("# 🌌 Verantyx Infinite Memory Playground (Qwen-0.5B)")
     gr.Markdown("This space mathematically proves the decoupling of **Logic (Model)** and **Knowledge (Memory)**. Upload millions of tokens, and the model will recall a 'Needle in a Haystack' instantly, while keeping an empty Context Window.")
     
+    # Hidden state to store the actual file path without freezing the UI
+    stored_file_path = gr.State(None)
+    
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown("### 1. Upload Knowledge (The Haystack)")
             
             file_upload = gr.File(label="Upload Massive Text File (.txt)", file_types=[".txt"])
             
-            with gr.Accordion("Knowledge Preview (Scrollable)", open=True):
-                knowledge_preview = gr.Textbox(lines=10, max_lines=15, show_label=False, placeholder="Uploaded text will appear here. You can also paste text directly.")
+            with gr.Accordion("Knowledge Preview", open=True):
+                knowledge_preview = gr.Textbox(lines=10, max_lines=15, show_label=False, interactive=False)
             
             token_count_display = gr.Markdown("**Estimated Size:** 0 tokens")
             
-            file_upload.upload(process_file, inputs=[file_upload], outputs=[knowledge_preview, token_count_display])
+            file_upload.upload(
+                process_file, 
+                inputs=[file_upload], 
+                outputs=[knowledge_preview, token_count_display, stored_file_path]
+            )
             
             upload_btn = gr.Button("⚡️ Vectorize & Inject to Brain", variant="primary")
             upload_status = gr.Textbox(label="Extraction Status", interactive=False)
             
-            upload_btn.click(upload_knowledge, inputs=[knowledge_preview], outputs=[upload_status])
+            upload_btn.click(upload_knowledge, inputs=[stored_file_path], outputs=[upload_status])
             
         with gr.Column(scale=2):
             gr.Markdown("### 2. Needle in a Haystack Test")
