@@ -141,8 +141,23 @@ def upload_knowledge(file_path, progress=gr.Progress()):
             processed_chars += len(text_chunk)
             progress(0.1 + 0.9 * (processed_chars / file_size), desc=f"Vectorized {total_tokens_processed:,} tokens...")
             
-    current_vectors = MEMORY_BANK.memory.size(0)
+    current_vectors = MEMORY_BANK.memory.size(0) if MEMORY_BANK.memory is not None else 0
     return f"✅ Success! Vectorized {total_tokens_processed:,} tokens.\nTotal Vectors in Memory Bank: {current_vectors:,}"
+
+def inject_dummy_haystack(size_millions):
+    load_system()
+    num_vectors = int(size_millions * 1000000)
+    # Generate dummy latent vectors (noise) to simulate a massive background context
+    # Real vectors from Qwen have specific norms, we simulate similar scale noise
+    dummy_vectors = torch.randn(num_vectors, 1024).half() * 0.1
+    
+    if MEMORY_BANK.memory is None:
+        MEMORY_BANK.memory = dummy_vectors
+    else:
+        MEMORY_BANK.memory = torch.cat([MEMORY_BANK.memory, dummy_vectors], dim=0)
+        
+    current_vectors = MEMORY_BANK.memory.size(0)
+    return f"✅ Success! Instantly injected {num_vectors:,} tokens of dummy haystack.\nTotal Vectors in Memory Bank: {current_vectors:,}"
 
 def generate_response(prompt, history):
     load_system()
@@ -196,10 +211,20 @@ with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
                 outputs=[knowledge_preview, token_count_display, stored_file_path]
             )
             
-            upload_btn = gr.Button("⚡️ Vectorize & Inject to Brain", variant="primary")
-            upload_status = gr.Textbox(label="Extraction Status", interactive=False)
+            upload_btn = gr.Button("⚡️ Vectorize & Inject Real Knowledge", variant="primary")
+            upload_status = gr.Textbox(label="Injection Status", interactive=False)
             
             upload_btn.click(upload_knowledge, inputs=[stored_file_path], outputs=[upload_status])
+            
+            gr.Markdown("### Or: Fast-Forward to Massive Scale (For Demo)")
+            gr.Markdown("Instantly load mathematically equivalent noise vectors to simulate processing millions of tokens, bypassing the CPU bottleneck.")
+            
+            with gr.Row():
+                btn_1m = gr.Button("💉 Inject 1 Million Token Haystack (Dummy)", variant="secondary")
+                btn_3m = gr.Button("💉 Inject 3 Million Token Haystack (Dummy)", variant="secondary")
+                
+            btn_1m.click(lambda: inject_dummy_haystack(1.0), inputs=[], outputs=[upload_status])
+            btn_3m.click(lambda: inject_dummy_haystack(3.0), inputs=[], outputs=[upload_status])
             
         with gr.Column(scale=2):
             gr.Markdown("### 2. Needle in a Haystack Test")
