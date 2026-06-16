@@ -22,6 +22,21 @@ This reduces the parameter size from `O(N^2)` to `O(N * Rank)`, giving up to a *
 ### The "Deep Re-Training" Secret
 Attempting to zero-shot compress weights like this breaks the Residual Stream and causes a noise cascade (gibberish output). To fix this, we developed a technique called **Deep Re-Training**. By loading these generative spatial coordinates back into PyTorch and training them on standard Language Modeling loss, the LLM successfully "re-learns" how to balance its reasoning logic within the compressed space.
 
+## The Paradigm Shift: Pure Reasoning Engine (Trade-offs)
+This architecture introduces a profound paradigm shift in how we use LLMs. By compressing the matrix variance so aggressively, we fundamentally alter the nature of the model.
+
+### ⚠️ The Disadvantage: Loss of "World Knowledge"
+Because we reduce the rank of the matrices significantly (e.g., Rank 128), the model physically loses its capacity to store vast amounts of "trivia" or "world knowledge" (e.g., niche historical dates, minor celebrity names, specific factual data). If you ask this compressed model a trivia question without context, it is highly likely to hallucinate because its dense memory has been structurally erased.
+
+### 🚀 The Revolutionary Advantage: The Ultimate RAG/Agent CPU
+While it loses *memory*, **Deep Re-Training preserves its *logical reasoning and instruction-following* capabilities**. 
+The model becomes a "pure reasoning engine" (like a CPU). 
+
+This makes it the absolute perfect candidate for **Retrieval-Augmented Generation (RAG)** and **Agentic AI**:
+- You do not need the AI to memorize coding best practices in its weights; you simply inject the coding guidelines into the prompt (Context).
+- Because its "internal memory" is wiped, it relies *strictly* on the external context you provide, **drastically reducing hallucinations** caused by conflicting internal knowledge.
+- You can create incredibly powerful, specialized AI agents that run at lightning speed on edge devices using less than a gigabyte of memory, simply by feeding external knowledge to this ultra-compressed reasoning core.
+
 ## Usage
 
 ### 1. Download the Trained `.jgen` Generative Lattice
