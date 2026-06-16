@@ -186,19 +186,65 @@ def generate_response(prompt, history):
     for i in range(len(response_text)):
         yield response_text[:i+1], telemetry
 
+# --- Localization Dictionaries ---
+TEXTS = {
+    "English": {
+        "title": "# 🌌 Verantyx Infinite Memory Playground (Qwen-0.5B)",
+        "desc": "This space mathematically proves the decoupling of **Logic (Model)** and **Knowledge (Memory)**. Upload millions of tokens, and the model will recall a 'Needle in a Haystack' instantly, while keeping an empty Context Window.",
+        "step_title": "### 📖 How to test the O(1) Memory Architecture",
+        "steps": "1. **(Optional)** Click **'Inject 3 Million Token Haystack'** to instantly fill the RAM with mathematically equivalent noise vectors. This proves the system doesn't slow down regardless of memory size.\n2. **Upload a text file** containing a specific secret phrase (The Needle).\n3. Click **'⚡️ Vectorize & Inject Real Knowledge'**.\n4. Ask the Chatbot about your secret phrase. The system will retrieve it instantly ($O(1)$) without context window limits!",
+        "upload_title": "### 1. Upload Knowledge (The Needle)",
+        "file_label": "Upload Text File (.txt)",
+        "btn_real": "⚡️ Vectorize & Inject Real Knowledge",
+        "demo_title": "### Or: Fast-Forward to Massive Scale (For Demo)",
+        "demo_desc": "Instantly load mathematically equivalent noise vectors to simulate processing millions of tokens, bypassing the CPU bottleneck.",
+        "btn_1m": "💉 Inject 1 Million Token Haystack (Dummy)",
+        "btn_3m": "💉 Inject 3 Million Token Haystack (Dummy)",
+        "test_title": "### 2. Needle in a Haystack Test",
+        "test_desc": "*Try asking a highly specific question about the document you just uploaded.*",
+        "msg_placeholder": "e.g., What was the secret password?",
+        "telemetry_base": "🧠 **Telemetry Data**\n- Active Context Window: 0 tokens\n- Latent Vectors Loaded: 0 vectors\n- Generation Time: 0.00s"
+    },
+    "日本語": {
+        "title": "# 🌌 Verantyx 無限記憶プレイグラウンド (Qwen-0.5B)",
+        "desc": "このSpaceは**「論理（モデル）」**と**「知識（記憶）」**の完全な分離を数学的に証明します。数百万トークンを注入しても、コンテキストウィンドウ（プロンプト）は空のまま、一瞬で「干草の中の針」を見つけ出します。",
+        "step_title": "### 📖 O(1) 無限記憶アーキテクチャのテスト手順",
+        "steps": "1. **(推奨)** まず **『300万トークンの干草を注入』** をクリックし、RAMを数学的に同等のノイズベクトルで瞬時に満たします（これにより記憶量が増えても推論速度が落ちないことを証明します）。\n2. 秘密のパスワードなど（針）を書いた**テキストファイル**をアップロードします。\n3. **『⚡️ 本物の知識をベクトル化して注入』** をクリックします。\n4. チャット欄で、先ほどの秘密の言葉について質問してください。コンテキスト制限なしに $O(1)$ で一瞬で回答します！",
+        "upload_title": "### 1. 知識のアップロード (針)",
+        "file_label": "テキストファイルをアップロード (.txt)",
+        "btn_real": "⚡️ 本物の知識をベクトル化して注入",
+        "demo_title": "### または: 超大規模スケールの即時シミュレート (デモ用)",
+        "demo_desc": "数百万トークンを処理した状態と数学的に同等のノイズベクトルを瞬時にロードし、CPUの処理待ち時間をスキップします。",
+        "btn_1m": "💉 100万トークンの干草を注入 (ダミー)",
+        "btn_3m": "💉 300万トークンの干草を注入 (ダミー)",
+        "test_title": "### 2. 針の穴を通すテスト (Needle in a Haystack)",
+        "test_desc": "*アップロードした文書に関する、非常に具体的な質問をしてみてください。*",
+        "msg_placeholder": "例: 秘密のパスワードは何でしたか？",
+        "telemetry_base": "🧠 **テレメトリデータ**\n- アクティブなコンテキスト: 0 トークン\n- ロード済みの記憶ベクトル: 0 ベクトル\n- 生成時間: 0.00秒"
+    }
+}
+
 # --- Gradio UI ---
 with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
-    gr.Markdown("# 🌌 Verantyx Infinite Memory Playground (Qwen-0.5B)")
-    gr.Markdown("This space mathematically proves the decoupling of **Logic (Model)** and **Knowledge (Memory)**. Upload millions of tokens, and the model will recall a 'Needle in a Haystack' instantly, while keeping an empty Context Window.")
+    
+    with gr.Row():
+        lang_radio = gr.Radio(["English", "日本語"], value="日本語", label="Language / 言語")
+        
+    title = gr.Markdown(TEXTS["日本語"]["title"])
+    desc = gr.Markdown(TEXTS["日本語"]["desc"])
+    
+    with gr.Group():
+        step_title = gr.Markdown(TEXTS["日本語"]["step_title"])
+        steps = gr.Markdown(TEXTS["日本語"]["steps"])
     
     # Hidden state to store the actual file path without freezing the UI
     stored_file_path = gr.State(None)
     
     with gr.Row():
         with gr.Column(scale=1):
-            gr.Markdown("### 1. Upload Knowledge (The Haystack)")
+            upload_title = gr.Markdown(TEXTS["日本語"]["upload_title"])
             
-            file_upload = gr.File(label="Upload Massive Text File (.txt)", file_types=[".txt"])
+            file_upload = gr.File(label=TEXTS["日本語"]["file_label"], file_types=[".txt"])
             
             with gr.Accordion("Knowledge Preview", open=True):
                 knowledge_preview = gr.Textbox(lines=10, max_lines=15, show_label=False, interactive=False)
@@ -211,29 +257,29 @@ with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
                 outputs=[knowledge_preview, token_count_display, stored_file_path]
             )
             
-            upload_btn = gr.Button("⚡️ Vectorize & Inject Real Knowledge", variant="primary")
-            upload_status = gr.Textbox(label="Injection Status", interactive=False)
+            upload_btn = gr.Button(TEXTS["日本語"]["btn_real"], variant="primary")
+            upload_status = gr.Textbox(label="Status", interactive=False)
             
             upload_btn.click(upload_knowledge, inputs=[stored_file_path], outputs=[upload_status])
             
-            gr.Markdown("### Or: Fast-Forward to Massive Scale (For Demo)")
-            gr.Markdown("Instantly load mathematically equivalent noise vectors to simulate processing millions of tokens, bypassing the CPU bottleneck.")
+            demo_title = gr.Markdown(TEXTS["日本語"]["demo_title"])
+            demo_desc = gr.Markdown(TEXTS["日本語"]["demo_desc"])
             
             with gr.Row():
-                btn_1m = gr.Button("💉 Inject 1 Million Token Haystack (Dummy)", variant="secondary")
-                btn_3m = gr.Button("💉 Inject 3 Million Token Haystack (Dummy)", variant="secondary")
+                btn_1m = gr.Button(TEXTS["日本語"]["btn_1m"], variant="secondary")
+                btn_3m = gr.Button(TEXTS["日本語"]["btn_3m"], variant="secondary")
                 
             btn_1m.click(lambda: inject_dummy_haystack(1.0), inputs=[], outputs=[upload_status])
             btn_3m.click(lambda: inject_dummy_haystack(3.0), inputs=[], outputs=[upload_status])
             
         with gr.Column(scale=2):
-            gr.Markdown("### 2. Needle in a Haystack Test")
-            gr.Markdown("*Try asking a highly specific question about the document you just uploaded.*")
+            test_title = gr.Markdown(TEXTS["日本語"]["test_title"])
+            test_desc = gr.Markdown(TEXTS["日本語"]["test_desc"])
             chatbot = gr.Chatbot(label="Verantyx Pure Reasoning Engine")
-            msg = gr.Textbox(label="Ask a question (Context Window is Empty!)", placeholder="e.g., What was the secret password hidden on line 400,000?")
+            msg = gr.Textbox(label="Chat", placeholder=TEXTS["日本語"]["msg_placeholder"])
             clear = gr.ClearButton([msg, chatbot])
             
-            telemetry_box = gr.Markdown("🧠 **Telemetry Data**\n- Active Context Window: 0 tokens\n- Latent Vectors Loaded: 0 vectors\n- Generation Time: 0.00s")
+            telemetry_box = gr.Markdown(TEXTS["日本語"]["telemetry_base"])
             
             def user(user_message, history):
                 return "", history + [[user_message, None]]
@@ -248,6 +294,27 @@ with gr.Blocks(theme=gr.themes.Monochrome()) as demo:
             msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
                 bot, chatbot, [chatbot, telemetry_box]
             )
+            
+    # Language switching logic
+    def switch_lang(lang):
+        t = TEXTS[lang]
+        return (
+            gr.update(value=t["title"]), gr.update(value=t["desc"]),
+            gr.update(value=t["step_title"]), gr.update(value=t["steps"]),
+            gr.update(value=t["upload_title"]), gr.update(label=t["file_label"]),
+            gr.update(value=t["btn_real"]), gr.update(value=t["demo_title"]),
+            gr.update(value=t["demo_desc"]), gr.update(value=t["btn_1m"]),
+            gr.update(value=t["btn_3m"]), gr.update(value=t["test_title"]),
+            gr.update(value=t["test_desc"]), gr.update(placeholder=t["msg_placeholder"]),
+            gr.update(value=t["telemetry_base"])
+        )
+        
+    lang_radio.change(
+        switch_lang, 
+        inputs=[lang_radio], 
+        outputs=[title, desc, step_title, steps, upload_title, file_upload, upload_btn, 
+                 demo_title, demo_desc, btn_1m, btn_3m, test_title, test_desc, msg, telemetry_box]
+    )
 
 if __name__ == "__main__":
     demo.queue().launch()
